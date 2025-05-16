@@ -39,7 +39,7 @@ MORSE_CODE_DICT = { 'A':'.-', 'B':'-...',
 
 input_string = args.input_str.upper()
 led.off()
-for iter in range():
+for iter in range(args.repeat_amt):
     for word in input_string.split():
         for c in word:
             morse = MORSE_CODE_DICT[c]
