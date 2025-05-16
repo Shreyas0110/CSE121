@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+
+from gpiozero import LED
+from time import sleep
+
+import argparse
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('repeat_amt', type=int)
+parser.add_argument('input_str', type=str)
+args = parser.parse_args()
+
+'''
+Between char = 3 dit
+between word = 7 dit
+'''
+
+led = LED(17)
+FREQUENCY = 1 #Char/Second
+longest_char = 10 #number of . in longest character (in this case, 0)
+period_dit = longest_char/FREQUENCY
+
+MORSE_CODE_DICT = { 'A':'.-', 'B':'-...',
+                    'C':'-.-.', 'D':'-..', 'E':'.',
+                    'F':'..-.', 'G':'--.', 'H':'....',
+                    'I':'..', 'J':'.---', 'K':'-.-',
+                    'L':'.-..', 'M':'--', 'N':'-.',
+                    'O':'---', 'P':'.--.', 'Q':'--.-',
+                    'R':'.-.', 'S':'...', 'T':'-',
+                    'U':'..-', 'V':'...-', 'W':'.--',
+                    'X':'-..-', 'Y':'-.--', 'Z':'--..',
+                    '1':'.----', '2':'..---', '3':'...--',
+                    '4':'....-', '5':'.....', '6':'-....',
+                    '7':'--...', '8':'---..', '9':'----.',
+                    '0':'-----', ', ':'--..--', '.':'.-.-.-',
+                    '?':'..--..', '/':'-..-.', '-':'-....-',
+                    '(':'-.--.', ')':'-.--.-'}
+
+input_string = args.input_str.upper()
+led.off()
+for iter in range():
+    for word in input_string.split():
+        for c in word:
+            morse = MORSE_CODE_DICT[c]
+            for i, elem in enumerate(morse):
+                led.on()
+                sleep(period_dit)
+                if elem == '-':
+                    sleep(period_dit*2)
+                led.off()
+                sleep(period_dit)
+            sleep(period_dit * 2)
+        sleep(period_dit*4)

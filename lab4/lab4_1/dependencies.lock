@@ -1,0 +1,21 @@
+dependencies:
+  espressif/icm42670:
+    component_hash: bc5b4c6ada234a77cd08d7b0957d21712ebf983bc3f495c6d0b948c9759a4ac2
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.2'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 2.0.1
+  idf:
+    source:
+      type: idf
+    version: 5.5.0
+direct_dependencies:
+- espressif/icm42670
+- idf
+manifest_hash: 2ffb8f079ed4367334cbfc1118ab0eac71cd3c3d8ce0c35fe9e24c5b33efb879
+target: esp32c3
+version: 2.0.0
