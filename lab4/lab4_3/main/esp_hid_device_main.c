@@ -235,12 +235,13 @@ void lab4_3(void)
 
         float roll = val.roll - initR;
         float pitch = val.pitch - initP;
+        /*
         if (pitch > 180){
             pitch -= 360;
         }
         if (roll > 180){
             roll -= 360;
-        }
+        }*/
         bool v = (abs((int)pitch) > 25) ? true : false;
         bool h = (abs((int)roll) > 25) ? true : false;
         int deltaX = 0;
