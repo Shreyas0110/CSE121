@@ -71,7 +71,7 @@ void initGPIO(void){
     };
     gpio_config(&echo_conf);
 
-    gpio_install_isr_service(0);
+    gpio_install_isr_service(3);
     gpio_isr_handler_add(ECHO_GPIO, echo_edge_isr_handler, NULL);
 
     // Setup GPTimer (counts in microseconds)
@@ -177,7 +177,8 @@ void app_main(void)
 
         if (measurement_ready) {
             measurement_ready = false;
-            float distance_cm = pulse_time / 58.0f;
+            float speed_of_sound = 331.3 + 0.606 * celsius; // m/s
+            float distance_cm = (speed_of_sound * pulse_time) / 20000.0;
             ESP_LOGI(TAG, "Distance: %.2f cm\n\n", distance_cm);
         } else {
             ESP_LOGW(TAG, "Sensor too far");
