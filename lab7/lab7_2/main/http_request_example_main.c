@@ -38,16 +38,19 @@
 #define SLEEP                       0xB098
 
 /* Constants that aren't configurable in menuconfig */
-#define WEB_SERVER "wttr.in"
-#define WEB_PORT "80"
-#define WEB_PATH "/Santa_Cruz"
+#define WEB_SERVER "10.0.0.94"
+#define WEB_PORT "1234"
+#define WEB_PATH "/"
 
 static const char *TAG = "example";
 
 static const char *REQUEST = "POST " WEB_PATH " HTTP/1.0\r\n"
     "Host: "WEB_SERVER":"WEB_PORT"\r\n"
-    "User-Agent: esp-idf/1.0 esp32 curl\r\n"
-    "\r\n";
+    "Content-Type: text/plain\r\n"
+    "User-Agent: esp-idf/1.0 esp32\r\n"
+    "Content-Length: %d\r\n"
+    "\r\n"
+    "%s";
 
 uint8_t crc8(const uint8_t *data, uint32_t len) {
     const uint8_t CRC8_POLYNOMIAL = 0x31;
@@ -135,6 +138,8 @@ static void http_get_task(void *pvParameters)
     i2c_master_init(&bus_handle, &dev_handle);
     ESP_LOGI(TAG, "I2C initialized successfully");
 
+    char postRequest[256];
+
     while(1) {
 
         shtc3_send_command(dev_handle, WAKEUP_CMD);
@@ -151,6 +156,10 @@ static void http_get_task(void *pvParameters)
 
         ESP_LOGI(TAG, "Temperature is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, (int) humidity);
         vTaskDelay(100 / portTICK_PERIOD_MS);
+
+        char content[100];
+        snprintf(content, sizeof(content), "Temperature is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, humidity);
+        snprintf(postRequest, sizeof(postRequest), REQUEST, strlen(content), content);
 
         int err = getaddrinfo(WEB_SERVER, WEB_PORT, &hints, &res);
 
@@ -186,7 +195,7 @@ static void http_get_task(void *pvParameters)
         ESP_LOGI(TAG, "... connected");
         freeaddrinfo(res);
 
-        if (write(s, REQUEST, strlen(REQUEST)) < 0) {
+        if (write(s, postRequest, strlen(postRequest)) < 0) {
             ESP_LOGE(TAG, "... socket send failed");
             close(s);
             vTaskDelay(4000 / portTICK_PERIOD_MS);

@@ -19,22 +19,16 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
 
-        try:
-            data = json.loads(post_data)
-        except json.JSONDecodeError:
-            data = {"error": "Invalid JSON"}
-
         # Log request info to stdout
         print(f"Received POST request from {self.client_address}")
         print(f"Path: {self.path}")
         print(f"Headers:\n{self.headers}")
         print(f"Body:\n{post_data.decode('utf-8')}")
-        print(f"Parsed JSON:\n{data}")
 
         self.send_response(200)
         self.send_header("Content-type", "application/json")
         self.end_headers()
-        response = {"message": "POST request received", "data": data}
+        response = {"message": "POST request received", "data": post_data.decode('utf-8')}
         self.wfile.write(json.dumps(response).encode('utf-8'))
 
 def run(server_class=HTTPServer, handler_class=SimpleHTTPRequestHandler, port=1234):
