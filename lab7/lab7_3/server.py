@@ -11,7 +11,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         print(f"Headers:\n{self.headers}")
 
         r = requests.get("https://ipinfo.io/json").json()
-        coord = r['loc']
+        coord = r['city']
 
         self.send_response(200)
         self.send_header("Content-type", "text/plain")

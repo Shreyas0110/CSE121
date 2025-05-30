@@ -44,7 +44,7 @@
 
 static const char *TAG = "example";
 
-static const char *WTTRGETREQUEST = "GET \\%s HTTP/1.0\r\n"
+static const char *WTTRGETREQUEST = "GET /%s?format=%%t HTTP/1.0\r\n"
     "Host: wttr.in:80\r\n"
     "User-Agent: esp-idf/1.0 esp32 curl\r\n"
     "\r\n";
@@ -167,10 +167,6 @@ static void http_get_task(void *pvParameters)
         ESP_LOGW(TAG, "Temperature is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, (int) humidity);
         vTaskDelay(100 / portTICK_PERIOD_MS);
 
-        char content[200];
-        snprintf(content, sizeof(content), "Temperature from sensor is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, humidity);
-        snprintf(postRequest, sizeof(postRequest), REQUEST, strlen(content), content);
-
         int err = getaddrinfo(WEB_SERVER, WEB_PORT, &hints, &res);
 
         if(err != 0 || res == NULL) {
@@ -203,7 +199,7 @@ static void http_get_task(void *pvParameters)
         }
 
         ESP_LOGI(TAG, "... connected");
-        freeaddrinfo(res);
+        
 
 //==============================================================================================
 //GET REQUEST LOCATION
@@ -227,6 +223,90 @@ static void http_get_task(void *pvParameters)
         }
         ESP_LOGI(TAG, "... set socket receiving timeout success");
 
+        char buffer[400];
+        memset(buffer, 0, 400);
+        do {
+            char* b = buffer;
+            bzero(recv_buf, sizeof(recv_buf));
+            r = read(s, recv_buf, sizeof(recv_buf)-1);
+            for(int i = 0; i < r; i++) {
+                putchar(recv_buf[i]);
+            }if(r){
+                memcpy(b, recv_buf, r);
+                b += r;
+            }
+
+        } while(r > 0);
+        close(s);
+        //char * loc = "Santa_Cruz";
+        
+        char * loc;
+        loc = strstr(buffer, "\r\n\r\n");
+        loc += 4;
+
+        ESP_LOGW(TAG, "loc = %s", loc);
+        ESP_LOGW(TAG, "buffer = %s", buffer);
+        for (int i = 0; loc[i] != '\0'; i++){
+            if (loc[i] == ' '){
+                loc[i] = '_';
+            }
+        }
+
+        //GET REQUEST WTTR.IN
+        snprintf(postRequest, sizeof(postRequest), WTTRGETREQUEST, loc);
+
+
+        struct addrinfo *res2;
+        struct in_addr *addr2;
+
+        int err2 = getaddrinfo("wttr.in", "80", &hints, &res2);
+
+        if(err2 != 0 || res2 == NULL) {
+            ESP_LOGE(TAG, "DNS lookup failed err=%d res=%p", err, res2);
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            continue;
+        }
+        addr2 = &((struct sockaddr_in *)res2->ai_addr)->sin_addr;
+        ESP_LOGI(TAG, "DNS lookup succeeded. IP=%s", inet_ntoa(*addr2));
+
+        s = socket(res2->ai_family, res2->ai_socktype, 0);
+        if(s < 0) {
+            ESP_LOGE(TAG, "... Failed to allocate socket.");
+            freeaddrinfo(res2);
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            continue;
+        }
+        ESP_LOGI(TAG, "... allocated socket");
+
+        if(connect(s, res2->ai_addr, res2->ai_addrlen) != 0) {
+            ESP_LOGE(TAG, "... socket connect failed errno=%d", errno);
+            close(s);
+            freeaddrinfo(res2);
+            vTaskDelay(4000 / portTICK_PERIOD_MS);
+            continue;
+        }
+
+        ESP_LOGI(TAG, "... connected");
+        if (write(s, postRequest, strlen(postRequest)) < 0) {
+            ESP_LOGE(TAG, "... socket send failed");
+            close(s);
+            vTaskDelay(4000 / portTICK_PERIOD_MS);
+            continue;
+        }
+        ESP_LOGI(TAG, "... socket send success");
+
+        receiving_timeout.tv_sec = 5;
+        receiving_timeout.tv_usec = 0;
+        if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &receiving_timeout,
+                sizeof(receiving_timeout)) < 0) {
+            ESP_LOGE(TAG, "... failed to set socket receiving timeout");
+            close(s);
+            vTaskDelay(4000 / portTICK_PERIOD_MS);
+            continue;
+        }
+        ESP_LOGI(TAG, "... set socket receiving timeout success");
+
+        /* Read HTTP response */
         do {
             bzero(recv_buf, sizeof(recv_buf));
             r = read(s, recv_buf, sizeof(recv_buf)-1);
@@ -234,9 +314,30 @@ static void http_get_task(void *pvParameters)
                 putchar(recv_buf[i]);
             }
         } while(r > 0);
+        close(s);
 
-        //GET REQUEST WTTR.IN
+        //POST REQUEST SERVER
 
+        char content[200];
+        snprintf(content, sizeof(content), "Temperature from sensor is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, humidity);
+        snprintf(postRequest, sizeof(postRequest), REQUEST, strlen(content), content);
+
+        s = socket(res->ai_family, res->ai_socktype, 0);
+        if(s < 0) {
+            ESP_LOGE(TAG, "... Failed to allocate socket.");
+            freeaddrinfo(res);
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            continue;
+        }
+        ESP_LOGI(TAG, "... allocated socket");
+
+        if(connect(s, res->ai_addr, res->ai_addrlen) != 0) {
+            ESP_LOGE(TAG, "... socket connect failed errno=%d", errno);
+            close(s);
+            freeaddrinfo(res);
+            vTaskDelay(4000 / portTICK_PERIOD_MS);
+            continue;
+        }
 
         if (write(s, postRequest, strlen(postRequest)) < 0) {
             ESP_LOGE(TAG, "... socket send failed");
@@ -267,7 +368,7 @@ static void http_get_task(void *pvParameters)
         } while(r > 0);
 
 //============================================================================================================
-
+        freeaddrinfo(res);
         ESP_LOGI(TAG, "... done reading from socket. Last read return=%d errno=%d.", r, errno);
         close(s);
         for(int countdown = 10; countdown >= 0; countdown--) {
