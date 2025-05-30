@@ -1,5 +1,6 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import requests
 
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 
@@ -9,10 +10,13 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         print(f"Path: {self.path}")
         print(f"Headers:\n{self.headers}")
 
+        r = requests.get("https://ipinfo.io/json").json()
+        coord = r['loc']
+
         self.send_response(200)
-        self.send_header("Content-type", "application/json")
+        self.send_header("Content-type", "text/plain")
         self.end_headers()
-        response = {"message": "GET request received"}
+        response = coord
         self.wfile.write(json.dumps(response).encode('utf-8'))
 
     def do_POST(self):
