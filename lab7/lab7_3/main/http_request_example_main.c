@@ -307,19 +307,30 @@ static void http_get_task(void *pvParameters)
         ESP_LOGI(TAG, "... set socket receiving timeout success");
 
         /* Read HTTP response */
+        memset(buffer, 0, 400);
         do {
+            char* b = buffer;
             bzero(recv_buf, sizeof(recv_buf));
             r = read(s, recv_buf, sizeof(recv_buf)-1);
             for(int i = 0; i < r; i++) {
                 putchar(recv_buf[i]);
+            }if(r){
+                memcpy(b, recv_buf, r);
+                b += r;
             }
+
         } while(r > 0);
+
+        char * temp = strstr(buffer, "+");
+        temp +=1;
+        temp[3] = '\0';
+        int wttrTemp = atoi(temp);
         close(s);
 
         //POST REQUEST SERVER
 
         char content[200];
-        snprintf(content, sizeof(content), "Temperature from sensor is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, humidity);
+        snprintf(content, sizeof(content), "Temperature from Wttr.in is %dC\nTemperature from sensor is %dC (or %dF) with a %d%% humidity", wttrTemp, celsius, fahrenheit, humidity);
         snprintf(postRequest, sizeof(postRequest), REQUEST, strlen(content), content);
 
         s = socket(res->ai_family, res->ai_socktype, 0);
