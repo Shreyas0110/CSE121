@@ -23,6 +23,20 @@
 #include "lwip/dns.h"
 #include "sdkconfig.h"
 
+#include "driver/i2c_master.h"
+
+#define I2C_MASTER_SCL_IO           8       /*!< GPIO number used for I2C master clock */
+#define I2C_MASTER_SDA_IO           10       /*!< GPIO number used for I2C master data  */
+#define I2C_MASTER_NUM              I2C_NUM_0                   /*!< I2C port number for master dev */
+#define I2C_MASTER_FREQ_HZ          400000 /*!< I2C master clock frequency */
+#define I2C_MASTER_TX_BUF_DISABLE   0                           /*!< I2C master doesn't need buffer */
+#define I2C_MASTER_RX_BUF_DISABLE   0                           /*!< I2C master doesn't need buffer */
+#define I2C_MASTER_TIMEOUT_MS       1000
+
+#define SHTC3_SENSOR_ADDR           0x70        /*!< Address of the MPU9250 sensor */
+#define WAKEUP_CMD                  0x3517 
+#define SLEEP                       0xB098
+
 /* Constants that aren't configurable in menuconfig */
 #define WEB_SERVER "wttr.in"
 #define WEB_PORT "80"
@@ -30,10 +44,79 @@
 
 static const char *TAG = "example";
 
-static const char *REQUEST = "GET " WEB_PATH " HTTP/1.0\r\n"
+static const char *REQUEST = "POST " WEB_PATH " HTTP/1.0\r\n"
     "Host: "WEB_SERVER":"WEB_PORT"\r\n"
     "User-Agent: esp-idf/1.0 esp32 curl\r\n"
     "\r\n";
+
+uint8_t crc8(const uint8_t *data, uint32_t len) {
+    const uint8_t CRC8_POLYNOMIAL = 0x31;
+    uint8_t crc = 0xFF;
+
+    for (uint32_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (uint8_t j = 0; j < 8; j++) {
+            if (crc & 0x80) {
+                crc = (crc << 1) ^ CRC8_POLYNOMIAL;
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+
+    return crc;
+}
+
+//data must be big enough for all data
+esp_err_t shtc3_read_data(i2c_master_dev_handle_t dev_handle, uint8_t* data_out, uint8_t data_length)
+{
+    esp_err_t err = i2c_master_receive(dev_handle, data_out, data_length, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    bool success = (crc8(data_out, 2) == data_out[2]);
+    success &= (crc8(data_out+3, 2) == data_out[5]);
+    if(!success){
+        ESP_LOGE(TAG, "CHECKSUM INVALID");
+    }
+    return err;
+}
+
+esp_err_t shtc3_send_command(i2c_master_dev_handle_t dev_handle, uint16_t cmd)
+{
+    uint8_t data[2] = {(uint8_t)((cmd & 0xff00) >> 8), (uint8_t)(cmd & 0xff)};
+    return i2c_master_transmit(dev_handle, data, sizeof(data), I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+}
+
+uint16_t getTemp(uint8_t* data){
+    uint16_t temp = (data[0] << 8 | data[1]);
+    return -45 + 175 * (((float)temp)/(1<<16));
+}
+
+uint16_t getHumidity(uint8_t* data){
+    uint16_t h = (data[0] << 8 | data[1]);
+    return 100 * (((float)h)/(1<<16));
+}
+
+/**
+ * @brief i2c master initialization
+ */
+static void i2c_master_init(i2c_master_bus_handle_t *bus_handle, i2c_master_dev_handle_t *dev_handle)
+{
+    i2c_master_bus_config_t bus_config = {
+        .i2c_port = I2C_MASTER_NUM,
+        .sda_io_num = I2C_MASTER_SDA_IO,
+        .scl_io_num = I2C_MASTER_SCL_IO,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
+    };
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, bus_handle));
+
+    i2c_device_config_t dev_config = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = SHTC3_SENSOR_ADDR,
+        .scl_speed_hz = I2C_MASTER_FREQ_HZ,
+    };
+    ESP_ERROR_CHECK(i2c_master_bus_add_device(*bus_handle, &dev_config, dev_handle));
+}
 
 static void http_get_task(void *pvParameters)
 {
@@ -46,7 +129,29 @@ static void http_get_task(void *pvParameters)
     int s, r;
     char recv_buf[64];
 
+    uint8_t data[6];
+    i2c_master_bus_handle_t bus_handle;
+    i2c_master_dev_handle_t dev_handle;
+    i2c_master_init(&bus_handle, &dev_handle);
+    ESP_LOGI(TAG, "I2C initialized successfully");
+
     while(1) {
+
+        shtc3_send_command(dev_handle, WAKEUP_CMD);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        shtc3_send_command(dev_handle, 0x7CA2);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+
+        shtc3_read_data(dev_handle, data, sizeof(data));
+
+        shtc3_send_command(dev_handle, SLEEP);
+        uint16_t celsius = getTemp(data);
+        uint16_t humidity = getHumidity(data+3);
+        uint16_t fahrenheit = celsius * (9/5) + 32;
+
+        ESP_LOGI(TAG, "Temperature is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, (int) humidity);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+
         int err = getaddrinfo(WEB_SERVER, WEB_PORT, &hints, &res);
 
         if(err != 0 || res == NULL) {
