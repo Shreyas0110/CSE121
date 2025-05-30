@@ -17,7 +17,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/plain")
         self.end_headers()
         response = coord
-        self.wfile.write(json.dumps(response).encode('utf-8'))
+        self.wfile.write(response.encode('utf-8'))
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -35,7 +35,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         response = {"message": "POST request received", "data": post_data.decode('utf-8')}
         self.wfile.write(json.dumps(response).encode('utf-8'))
 
-def run(server_class=HTTPServer, handler_class=SimpleHTTPRequestHandler, port=1234):
+def run(server_class=HTTPServer, handler_class=SimpleHTTPRequestHandler, port=2234):
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)
     print(f"Starting server on port {port}...")

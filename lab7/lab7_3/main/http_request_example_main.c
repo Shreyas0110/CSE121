@@ -38,11 +38,16 @@
 #define SLEEP                       0xB098
 
 /* Constants that aren't configurable in menuconfig */
-#define WEB_SERVER "10.0.0.94"
-#define WEB_PORT "1234"
+#define WEB_SERVER "192.168.0.186"
+#define WEB_PORT "2234"
 #define WEB_PATH "/"
 
 static const char *TAG = "example";
+
+static const char *WTTRGETREQUEST = "GET \\%s HTTP/1.0\r\n"
+    "Host: wttr.in:80\r\n"
+    "User-Agent: esp-idf/1.0 esp32 curl\r\n"
+    "\r\n";
 
 static const char *GETREQUEST = "GET " WEB_PATH " HTTP/1.0\r\n"
     "Host: "WEB_SERVER":"WEB_PORT"\r\n"
@@ -143,7 +148,7 @@ static void http_get_task(void *pvParameters)
     i2c_master_init(&bus_handle, &dev_handle);
     ESP_LOGI(TAG, "I2C initialized successfully");
 
-    char postRequest[256];
+    char postRequest[456];
 
     while(1) {
 
@@ -159,11 +164,11 @@ static void http_get_task(void *pvParameters)
         uint16_t humidity = getHumidity(data+3);
         uint16_t fahrenheit = celsius * (9/5) + 32;
 
-        ESP_LOGI(TAG, "Temperature is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, (int) humidity);
+        ESP_LOGW(TAG, "Temperature is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, (int) humidity);
         vTaskDelay(100 / portTICK_PERIOD_MS);
 
-        char content[100];
-        snprintf(content, sizeof(content), "Temperature is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, humidity);
+        char content[200];
+        snprintf(content, sizeof(content), "Temperature from sensor is %dC (or %dF) with a %d%% humidity", celsius, fahrenheit, humidity);
         snprintf(postRequest, sizeof(postRequest), REQUEST, strlen(content), content);
 
         int err = getaddrinfo(WEB_SERVER, WEB_PORT, &hints, &res);
@@ -200,7 +205,9 @@ static void http_get_task(void *pvParameters)
         ESP_LOGI(TAG, "... connected");
         freeaddrinfo(res);
 
-        if (write(s, postRequest, strlen(postRequest)) < 0) {
+//==============================================================================================
+//GET REQUEST LOCATION
+        if (write(s, GETREQUEST, strlen(GETREQUEST)) < 0) {
             ESP_LOGE(TAG, "... socket send failed");
             close(s);
             vTaskDelay(4000 / portTICK_PERIOD_MS);
@@ -220,6 +227,36 @@ static void http_get_task(void *pvParameters)
         }
         ESP_LOGI(TAG, "... set socket receiving timeout success");
 
+        do {
+            bzero(recv_buf, sizeof(recv_buf));
+            r = read(s, recv_buf, sizeof(recv_buf)-1);
+            for(int i = 0; i < r; i++) {
+                putchar(recv_buf[i]);
+            }
+        } while(r > 0);
+
+        //GET REQUEST WTTR.IN
+
+
+        if (write(s, postRequest, strlen(postRequest)) < 0) {
+            ESP_LOGE(TAG, "... socket send failed");
+            close(s);
+            vTaskDelay(4000 / portTICK_PERIOD_MS);
+            continue;
+        }
+        ESP_LOGI(TAG, "... socket send success");
+
+        receiving_timeout.tv_sec = 5;
+        receiving_timeout.tv_usec = 0;
+        if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &receiving_timeout,
+                sizeof(receiving_timeout)) < 0) {
+            ESP_LOGE(TAG, "... failed to set socket receiving timeout");
+            close(s);
+            vTaskDelay(4000 / portTICK_PERIOD_MS);
+            continue;
+        }
+        ESP_LOGI(TAG, "... set socket receiving timeout success");
+
         /* Read HTTP response */
         do {
             bzero(recv_buf, sizeof(recv_buf));
@@ -228,6 +265,8 @@ static void http_get_task(void *pvParameters)
                 putchar(recv_buf[i]);
             }
         } while(r > 0);
+
+//============================================================================================================
 
         ESP_LOGI(TAG, "... done reading from socket. Last read return=%d errno=%d.", r, errno);
         close(s);

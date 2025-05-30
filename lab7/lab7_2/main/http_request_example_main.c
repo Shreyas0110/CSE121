@@ -38,8 +38,8 @@
 #define SLEEP                       0xB098
 
 /* Constants that aren't configurable in menuconfig */
-#define WEB_SERVER "10.0.0.94"
-#define WEB_PORT "1234"
+#define WEB_SERVER "192.168.0.186"
+#define WEB_PORT "2234"
 #define WEB_PATH "/"
 
 static const char *TAG = "example";
