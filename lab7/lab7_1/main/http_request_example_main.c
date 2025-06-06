@@ -24,15 +24,15 @@
 #include "sdkconfig.h"
 
 /* Constants that aren't configurable in menuconfig */
-#define WEB_SERVER "example.com"
+#define WEB_SERVER "wttr.in"
 #define WEB_PORT "80"
-#define WEB_PATH "/"
+#define WEB_PATH "/Santa_Cruz"
 
 static const char *TAG = "example";
 
 static const char *REQUEST = "GET " WEB_PATH " HTTP/1.0\r\n"
     "Host: "WEB_SERVER":"WEB_PORT"\r\n"
-    "User-Agent: esp-idf/1.0 esp32\r\n"
+    "User-Agent: esp-idf/1.0 esp32 curl\r\n"
     "\r\n";
 
 static void http_get_task(void *pvParameters)
