@@ -47,8 +47,13 @@ for iter in range(args.repeat_amt):
                 led.on()
                 sleep(period_dit)
                 if elem == '-':
+                    print('-')
                     sleep(period_dit*2)
+                else:
+                    print('.')
                 led.off()
                 sleep(period_dit)
             sleep(period_dit * 2)
+            print(' ')
         sleep(period_dit*4)
+        print('/ ')
